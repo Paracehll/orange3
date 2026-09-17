@@ -118,6 +118,7 @@ class OWLLM(OWWidget):
     category = "Transform"
     icon = "icons/PythonScript.svg"
     priority = 3160
+    keywords = "llm, gpt, openai, deepseek, gemini, nvidia, chatgpt, prompt, ai"
 
     class Inputs:
         prompt = Input("Prompt", object, auto_summary=False)
