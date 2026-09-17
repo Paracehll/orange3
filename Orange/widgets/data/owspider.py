@@ -3,7 +3,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 from html.parser import HTMLParser
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 from AnyQt.QtCore import Qt
 
@@ -54,7 +54,6 @@ def fetch_url(url: str, user_agent: str = "Mozilla/5.0", timeout: int = 10) -> D
 
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         status_code = resp.status
-        content_type = resp.headers.get_content_type()
         raw_data = resp.read()
 
         charset = resp.headers.get_param("charset") or "utf-8"
@@ -93,7 +92,7 @@ class OWSpider(OWWidget):
     keywords = "spider, crawl, web, scraper, url, html, text, fetch"
 
     class Inputs:
-        url_input = Input("URL", object, auto_summary=False)
+        data_input = Input("Data", object, auto_summary=False)
 
     class Outputs:
         data = Output("Data", Table, auto_summary=False)
@@ -112,7 +111,7 @@ class OWSpider(OWWidget):
     def __init__(self):
         super().__init__()
 
-        self.input_url: Optional[Any] = None
+        self.input_data: Optional[Any] = None
 
         # GUI Layout
         form_box = gui.vBox(self.controlArea, "Spider Settings")
@@ -120,7 +119,7 @@ class OWSpider(OWWidget):
         gui.lineEdit(
             form_box, self, "url", "Target URL:",
             orientation=Qt.Horizontal,
-            tooltip="Web page URL to crawl."
+            tooltip="Default web page URL to crawl when no input table is connected."
         )
 
         gui.spin(
@@ -132,7 +131,7 @@ class OWSpider(OWWidget):
         gui.spin(
             form_box, self, "max_pages", 1, 100, step=1,
             label="Max Pages:",
-            tooltip="Maximum number of pages to crawl."
+            tooltip="Maximum number of pages to crawl per task."
         )
 
         gui.spin(
@@ -149,74 +148,112 @@ class OWSpider(OWWidget):
 
         gui.button(self.controlArea, self, "Crawl", callback=self.commit)
 
-        # Output Preview
-        self.result_box = gui.vBox(self.mainArea, "Crawl Results")
-        self.result_label = gui.widgetLabel(self.result_box, "No results yet.")
-
-    @Inputs.url_input
-    def set_url_input(self, url_data):
-        self.input_url = url_data
+    @Inputs.data_input
+    def set_data_input(self, data):
+        self.input_data = data
 
     def handleNewSignals(self):
         self.commit()
 
-    def _get_start_urls(self) -> List[str]:
-        if self.input_url is not None:
-            if isinstance(self.input_url, Table):
-                urls = []
-                for row in self.input_url:
+    def _parse_tasks(self) -> List[Tuple[str, int, int, int]]:
+        """
+        Parse tasks from input data table or default settings.
+        Returns list of (url, max_depth, max_pages, timeout).
+        """
+        tasks = []
+        if self.input_data is not None and isinstance(self.input_data, Table):
+            table = self.input_data
+            domain = table.domain
+
+            # Map column names (case-insensitive & space/underscore insensitive)
+            col_map = {}
+            all_vars = domain.attributes + domain.class_vars + domain.metas
+            for var in all_vars:
+                norm_name = re.sub(r"[\s_]+", "", var.name.lower())
+                col_map[norm_name] = var
+
+            url_var = col_map.get("url")
+            depth_var = col_map.get("maxdepth")
+            pages_var = col_map.get("maxpages")
+            timeout_var = col_map.get("timeout")
+
+            for row in table:
+                task_url = str(row[url_var]).strip() if url_var is not None else ""
+                if not task_url:
+                    # Fallback to searching first URL-like string in row
                     for val in row:
                         val_str = str(val).strip()
                         if val_str.startswith("http://") or val_str.startswith("https://"):
-                            urls.append(val_str)
-                if urls:
-                    return urls
-            else:
-                input_str = str(self.input_url).strip()
-                if input_str:
-                    return [input_str]
+                            task_url = val_str
+                            break
 
-        start_url = self.url.strip()
-        return [start_url] if start_url else []
+                if not task_url:
+                    continue
+
+                try:
+                    task_depth = int(float(row[depth_var])) if depth_var is not None else self.max_depth
+                except (ValueError, TypeError):
+                    task_depth = self.max_depth
+
+                try:
+                    task_pages = int(float(row[pages_var])) if pages_var is not None else self.max_pages
+                except (ValueError, TypeError):
+                    task_pages = self.max_pages
+
+                try:
+                    task_timeout = int(float(row[timeout_var])) if timeout_var is not None else self.timeout
+                except (ValueError, TypeError):
+                    task_timeout = self.timeout
+
+                tasks.append((task_url, task_depth, task_pages, task_timeout))
+
+        if not tasks:
+            # Fallback to GUI settings
+            default_url = self.url.strip()
+            if default_url:
+                tasks.append((default_url, self.max_depth, self.max_pages, self.timeout))
+
+        return tasks
 
     def commit(self):
         self.Error.clear()
 
-        start_urls = self._get_start_urls()
-        if not start_urls:
-            self.Error.crawl_error("Please enter a valid target URL.")
-            self.result_label.setText("Error: Missing target URL.")
+        tasks = self._parse_tasks()
+        if not tasks:
+            self.Error.crawl_error("Please enter a valid target URL or connect a task table.")
             self.Outputs.data.send(None)
             self.Outputs.text.send(None)
             return
 
-        visited = set()
-        crawled_results = []
-        queue = [(u, 1) for u in start_urls]
-
+        all_crawled_results = []
         try:
-            while queue and len(crawled_results) < self.max_pages:
-                current_url, depth = queue.pop(0)
-                if current_url in visited:
-                    continue
-                visited.add(current_url)
+            for task_url, task_depth, task_pages, task_timeout in tasks:
+                visited = set()
+                queue = [(task_url, 1)]
+                task_results_count = 0
 
-                try:
-                    res = fetch_url(current_url, user_agent=self.user_agent, timeout=self.timeout)
-                    crawled_results.append(res)
+                while queue and task_results_count < task_pages:
+                    current_url, depth = queue.pop(0)
+                    if current_url in visited:
+                        continue
+                    visited.add(current_url)
 
-                    if depth < self.max_depth:
-                        for link in res["links"]:
-                            if link not in visited and len(crawled_results) + len(queue) < self.max_pages:
-                                queue.append((link, depth + 1))
-                except Exception as page_err:
-                    # Skip un-fetchable pages
-                    continue
+                    try:
+                        res = fetch_url(current_url, user_agent=self.user_agent, timeout=task_timeout)
+                        all_crawled_results.append(res)
+                        task_results_count += 1
 
-            if not crawled_results:
+                        if depth < task_depth:
+                            for link in res["links"]:
+                                if link not in visited and task_results_count + len(queue) < task_pages:
+                                    queue.append((link, depth + 1))
+                    except Exception:
+                        continue
+
+            if not all_crawled_results:
                 raise ValueError("Failed to crawl any pages.")
 
-            # Build Orange Table
+            # Build Orange Table Output
             var_url = StringVariable("URL")
             var_title = StringVariable("Title")
             var_status = ContinuousVariable("Status")
@@ -228,7 +265,7 @@ class OWSpider(OWWidget):
             metas = []
             text_outputs = []
 
-            for r in crawled_results:
+            for r in all_crawled_results:
                 X.append([r["status"]])
                 metas.append([r["url"], r["title"], r["text"]])
                 text_outputs.append(f"=== {r['title']} ({r['url']}) ===\n{r['text']}")
@@ -236,17 +273,11 @@ class OWSpider(OWWidget):
             out_table = Table.from_numpy(domain, X=X, metas=metas)
             combined_text = "\n\n".join(text_outputs)
 
-            self.result_label.setText(
-                f"Crawled {len(crawled_results)} page(s).\n\n" +
-                (combined_text[:500] + ("..." if len(combined_text) > 500 else ""))
-            )
-
             self.Outputs.data.send(out_table)
             self.Outputs.text.send(combined_text)
 
         except Exception as e:
             self.Error.crawl_error(str(e))
-            self.result_label.setText(f"Error: {e}")
             self.Outputs.data.send(None)
             self.Outputs.text.send(None)
 

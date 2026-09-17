@@ -2,7 +2,7 @@ import concurrent.futures
 import json
 import urllib.request
 import urllib.error
-from typing import Optional, List, Any
+from typing import Optional, List, Dict, Any
 
 from AnyQt.QtCore import Qt
 
@@ -12,6 +12,34 @@ from Orange.widgets.widget import OWWidget, Input, Output, Msg
 
 
 PROVIDERS = ["Auto / OpenAI", "DeepSeek", "Gemini", "NVIDIA NIM"]
+DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct"
+
+
+def fetch_nvidia_models(api_key: str) -> List[str]:
+    """
+    Fetch available models from NVIDIA NIM API.
+    """
+    api_key = api_key.strip()
+    if not api_key:
+        return [DEFAULT_NVIDIA_MODEL]
+
+    url = "https://integrate.api.nvidia.com/v1/models"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            models = [item["id"] for item in data.get("data", []) if "id" in item]
+            if models:
+                return sorted(models)
+    except Exception:
+        pass
+
+    return [DEFAULT_NVIDIA_MODEL]
 
 
 def detect_provider(key: str, selected_provider: int) -> str:
@@ -33,7 +61,7 @@ def detect_provider(key: str, selected_provider: int) -> str:
     return "openai"
 
 
-def call_llm_api(prompt_text: str, api_key: str, provider: str = "openai") -> str:
+def call_llm_api(prompt_text: str, api_key: str, provider: str = "openai", model_name: str = "") -> str:
     """
     Call LLM provider API (OpenAI, DeepSeek, Gemini, NVIDIA NIM).
     """
@@ -46,14 +74,14 @@ def call_llm_api(prompt_text: str, api_key: str, provider: str = "openai") -> st
         url = "https://api.openai.com/v1/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         payload = {
-            "model": "gpt-4o-mini",
+            "model": model_name or "gpt-4o-mini",
             "messages": [{"role": "user", "content": prompt_text}]
         }
     elif provider == "deepseek":
         url = "https://api.deepseek.com/v1/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         payload = {
-            "model": "deepseek-chat",
+            "model": model_name or "deepseek-chat",
             "messages": [{"role": "user", "content": prompt_text}]
         }
     elif provider == "gemini":
@@ -65,7 +93,7 @@ def call_llm_api(prompt_text: str, api_key: str, provider: str = "openai") -> st
         url = "https://integrate.api.nvidia.com/v1/chat/completions"
         headers["Authorization"] = f"Bearer {api_key}"
         payload = {
-            "model": "meta/llama-3.1-8b-instruct",
+            "model": model_name or DEFAULT_NVIDIA_MODEL,
             "messages": [{"role": "user", "content": prompt_text}]
         }
     else:
@@ -85,7 +113,13 @@ def call_llm_api(prompt_text: str, api_key: str, provider: str = "openai") -> st
     return str(response_data)
 
 
-def execute_llm_task(prompt_text: str, api_keys: List[str], provider_idx: int = 0, retry: bool = True) -> str:
+def execute_llm_task(
+    prompt_text: str,
+    api_keys: List[str],
+    provider_idx: int = 0,
+    retry: bool = True,
+    model_name: str = ""
+) -> str:
     """
     Execute task with optional key rotation / retry.
     """
@@ -101,7 +135,7 @@ def execute_llm_task(prompt_text: str, api_keys: List[str], provider_idx: int = 
         provider = detect_provider(key, provider_idx)
 
         try:
-            return call_llm_api(prompt_text, key, provider=provider)
+            return call_llm_api(prompt_text, key, provider=provider, model_name=model_name)
         except Exception as e:
             last_error = e
             if not retry:
@@ -131,6 +165,7 @@ class OWLLM(OWWidget):
     # Settings
     api_key = Setting("")
     provider_idx = Setting(0)
+    model_idx = Setting(0)
     parallel_count = Setting(1)
     retry = Setting(True)
 
@@ -144,6 +179,7 @@ class OWLLM(OWWidget):
         self.input_skill: Optional[Any] = None
         self.input_file: Optional[Any] = None
         self.result_data: Optional[Any] = None
+        self.nvidia_models: List[str] = [DEFAULT_NVIDIA_MODEL]
 
         # GUI Layout
         form_box = gui.vBox(self.controlArea, "LLM Settings")
@@ -152,13 +188,22 @@ class OWLLM(OWWidget):
             form_box, self, "provider_idx",
             items=PROVIDERS,
             label="Provider:",
+            callback=self._on_provider_or_key_changed,
             tooltip="Select LLM provider or auto-detect from API Key format."
         )
 
         gui.lineEdit(
             form_box, self, "api_key", "API Key(s) (comma-separated):",
             orientation=Qt.Horizontal,
+            callback=self._on_provider_or_key_changed,
             tooltip="Supported: OpenAI (ChatGPT), DeepSeek, Gemini, NVIDIA NIM. Separate multiple keys with commas."
+        )
+
+        self.model_combo = gui.comboBox(
+            form_box, self, "model_idx",
+            items=self.nvidia_models,
+            label="NVIDIA Model:",
+            tooltip="Select model for NVIDIA NIM provider."
         )
 
         gui.spin(
@@ -177,6 +222,28 @@ class OWLLM(OWWidget):
         # Output / Status Box
         self.result_box = gui.vBox(self.mainArea, "Result Preview")
         self.result_label = gui.widgetLabel(self.result_box, "No result yet.")
+
+        self._update_model_combobox()
+
+    def _on_provider_or_key_changed(self):
+        self._update_model_combobox()
+
+    def _update_model_combobox(self):
+        keys = [k.strip() for k in self.api_key.split(",") if k.strip()]
+        first_key = keys[0] if keys else ""
+        provider = detect_provider(first_key, self.provider_idx)
+
+        if provider == "nvidia" and first_key:
+            fetched_models = fetch_nvidia_models(first_key)
+            if fetched_models:
+                self.nvidia_models = fetched_models
+
+        self.model_combo.clear()
+        self.model_combo.addItems(self.nvidia_models)
+
+        if self.model_idx >= len(self.nvidia_models):
+            self.model_idx = 0
+        self.model_combo.setCurrentIndex(self.model_idx)
 
     @Inputs.prompt
     def set_prompt(self, prompt):
@@ -224,6 +291,10 @@ class OWLLM(OWWidget):
         prompt_str = str(self.input_prompt) if self.input_prompt is not None else ""
         skill_str = str(self.input_skill) if self.input_skill is not None else ""
 
+        selected_model = ""
+        if 0 <= self.model_idx < len(self.nvidia_models):
+            selected_model = self.nvidia_models[self.model_idx]
+
         file_chunks = self._split_content(self.input_file, self.parallel_count)
 
         tasks = []
@@ -242,12 +313,25 @@ class OWLLM(OWWidget):
         try:
             if len(tasks) == 1 or self.parallel_count <= 1:
                 for task_prompt in tasks:
-                    res = execute_llm_task(task_prompt, keys, provider_idx=self.provider_idx, retry=self.retry)
+                    res = execute_llm_task(
+                        task_prompt,
+                        keys,
+                        provider_idx=self.provider_idx,
+                        retry=self.retry,
+                        model_name=selected_model
+                    )
                     results.append(res)
             else:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=self.parallel_count) as executor:
                     futures = [
-                        executor.submit(execute_llm_task, t, keys, self.provider_idx, self.retry)
+                        executor.submit(
+                            execute_llm_task,
+                            t,
+                            keys,
+                            self.provider_idx,
+                            self.retry,
+                            selected_model
+                        )
                         for t in tasks
                     ]
                     # Preserve chunk order

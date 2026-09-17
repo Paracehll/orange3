@@ -1,5 +1,5 @@
 from unittest.mock import patch
-from Orange.widgets.data.owllm import OWLLM, call_llm_api, execute_llm_task, detect_provider
+from Orange.widgets.data.owllm import OWLLM, call_llm_api, execute_llm_task, detect_provider, fetch_nvidia_models
 from Orange.widgets.tests.base import WidgetTest
 
 
@@ -19,6 +19,21 @@ class TestOWLLM(WidgetTest):
         self.assertEqual(detect_provider("key", 3), "nvidia")
         self.assertEqual(detect_provider("nvapi-123", 0), "nvidia")
         self.assertEqual(detect_provider("AIza123", 0), "gemini")
+
+    @patch("urllib.request.urlopen")
+    def test_fetch_nvidia_models(self, mock_urlopen):
+        class MockResponse:
+            def read(self):
+                return b'{"data": [{"id": "meta/llama-3.1-70b-instruct"}, {"id": "meta/llama-3.1-8b-instruct"}]}'
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+        mock_urlopen.return_value = MockResponse()
+        models = fetch_nvidia_models("nvapi-testkey")
+        self.assertIn("meta/llama-3.1-70b-instruct", models)
+        self.assertIn("meta/llama-3.1-8b-instruct", models)
 
     def test_inputs_and_outputs(self):
         self.send_signal(self.widget.Inputs.prompt, "Translate this")
@@ -43,7 +58,7 @@ class TestOWLLM(WidgetTest):
 
     @patch("Orange.widgets.data.owllm.call_llm_api")
     def test_parallel_chunk_ordering(self, mock_call_llm):
-        def mock_llm(prompt, key, provider):
+        def mock_llm(prompt, key, provider, model_name=""):
             if "Chunk 1" in prompt:
                 return "Res 1"
             elif "Chunk 2" in prompt:
