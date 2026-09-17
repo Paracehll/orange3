@@ -6,6 +6,7 @@ REM ============================================
 
 setlocal enabledelayedexpansion
 chcp 65001 >nul 2>&1
+cd /d "%~dp0"
 cls
 
 REM ========================================
@@ -19,7 +20,7 @@ echo.
 REM ========================================
 REM Check if setup was run
 REM ========================================
-if not exist "venv" (
+if not exist "venv\Scripts\activate.bat" (
     echo [X] Virtual environment not found!
     echo     Please run setup-and-update.bat first to install.
     echo.

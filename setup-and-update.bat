@@ -6,6 +6,7 @@ REM ============================================
 
 setlocal enabledelayedexpansion
 chcp 65001 >nul 2>&1
+cd /d "%~dp0"
 cls
 
 REM ========================================
@@ -37,7 +38,7 @@ REM STEP 2: Virtual Environment Setup
 REM ========================================
 echo.
 echo [2/5] Virtual Environment Setup...
-if not exist "venv" (
+if not exist "venv\Scripts\activate.bat" (
     echo     [..] First-time setup - creating virtual environment...
     python -m venv venv
     if errorlevel 1 (
@@ -71,6 +72,8 @@ REM ========================================
 echo.
 echo [4/5] Checking for Updates...
 
+set NEEDS_UPDATE=0
+
 git --version >nul 2>&1
 if not errorlevel 1 (
     echo     [..] Checking for code updates from Git...
@@ -91,8 +94,6 @@ if not errorlevel 1 (
 ) else (
     echo     [--] Git not available, skipping code update check
 )
-
-set NEEDS_UPDATE=0
 
 if !FIRST_INSTALL!==1 (
     set NEEDS_UPDATE=1
