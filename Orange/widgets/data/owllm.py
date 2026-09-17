@@ -120,12 +120,12 @@ class OWLLM(OWWidget):
     priority = 3160
 
     class Inputs:
-        prompt = Input("Prompt", object)
-        skill = Input("Skill", object)
-        file = Input("File", object)
+        prompt = Input("Prompt", object, auto_summary=False)
+        skill = Input("Skill", object, auto_summary=False)
+        file = Input("File", object, auto_summary=False)
 
     class Outputs:
-        result = Output("Result", object)
+        result = Output("Result", object, auto_summary=False)
 
     # Settings
     api_key = Setting("")
