@@ -8,7 +8,7 @@ from AnyQt.QtCore import Qt
 
 from Orange.widgets import gui
 from Orange.widgets.settings import Setting
-from Orange.widgets.widget import OWWidget, Input, Output
+from Orange.widgets.widget import OWWidget, Input, Output, Msg
 
 
 PROVIDERS = ["Auto / OpenAI", "DeepSeek", "Gemini", "NVIDIA NIM"]
@@ -135,7 +135,7 @@ class OWLLM(OWWidget):
     retry = Setting(True)
 
     class Error(OWWidget.Error):
-        api_error = OWWidget.Msg("LLM Execution Error: {}")
+        api_error = Msg("LLM Execution Error: {}")
 
     def __init__(self):
         super().__init__()
