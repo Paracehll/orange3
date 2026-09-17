@@ -32,40 +32,32 @@
 
 For easy installation, [Download](https://orange.biolab.si/download) the latest released Orange version from our website. To install an add-on, head to `Options -> Add-ons...` in the menu bar.
 
-### Installing with Conda
+### Installing with Virtual Environment (venv)
 
-First, install [Miniconda](https://docs.conda.io/en/latest/miniconda.html) for your OS. 
+#### Windows (Quick Setup)
 
-Then, create a new conda environment, and install orange3:
+1. Clone or download this repository.
+2. Run `setup-and-update.bat` to create a virtual environment (`venv`) and install all required dependencies.
+3. Run `start.bat` to launch Orange Data Mining.
+
+#### Manual Setup (venv + pip)
+
+Create a virtual environment and install Orange:
 
 ```Shell
-# Add conda-forge to your channels for access to the latest release
-conda config --add channels conda-forge
+# Create virtual environment
+python -m venv venv
 
-# Perhaps enforce strict conda-forge priority
-conda config --set channel_priority strict
+# Activate virtual environment
+# Windows:
+venv\Scripts\activate
+# macOS/Linux:
+source venv/bin/activate
 
-# Create and activate an environment for Orange
-conda create python=3.12 --yes --name orange3
-conda activate orange3
-
-# Install Orange
-conda install orange3
+# Install PyQt and Orange
+pip install -r requirements-pyqt.txt
+pip install -e .
 ```
-
-For installation of an add-on, use:
-```Shell
-conda install orange3-<addon name>
-```
-[See specific add-on repositories for details.](https://github.com/biolab/)
-
-
-### Installing with pip
-
-We recommend using our [standalone installer](https://orange.biolab.si/download) or conda, but Orange is also installable with pip. You will need a C/C++ compiler (on Windows we suggest using Microsoft Visual Studio Build Tools).
-Orange needs PyQt to run. Install either:
-- PyQt6 and PyQt6-WebEngine: `pip install PyQt6 PyQt6-WebEngine` (suggested)
-- PyQt5 and PyQtWebEngine: `pip install PyQt5 PyQtWebEngine`
 
 ### Installing with winget (Windows only)
 
@@ -77,10 +69,18 @@ winget install --id  UniversityofLjubljana.Orange
 
 ## Running
 
-Ensure you've activated the correct virtual environment. If following the above conda instructions:
+### Windows
+Run `start.bat` or run from activated environment:
+```Shell
+venv\Scripts\activate
+python -m Orange.canvas
+```
+
+### macOS / Linux
+Ensure you've activated the virtual environment:
 
 ```Shell
-conda activate orange3
+source venv/bin/activate
 ``` 
 
 Run `orange-canvas` or `python3 -m Orange.canvas`. Add `--help` for a list of program options.
@@ -131,11 +131,11 @@ Set your GitHub username,
 export MY_GITHUB_USERNAME=replaceme
 ```
 
-create a conda environment, clone your fork, and install it:
+create a virtual environment, clone your fork, and install it:
 
 ```Shell
-conda create python=3.12 --yes --name orange3
-conda activate orange3
+python -m venv venv
+# Activate environment (venv\Scripts\activate on Windows or source venv/bin/activate on macOS/Linux)
 
 git clone ssh://git@github.com/$MY_GITHUB_USERNAME/orange3
 
@@ -148,7 +148,7 @@ Now you're ready to work with git. See GitHub's guides on [pull requests](https:
 
 #### Running
 
-Run Orange with `python -m Orange.canvas` (after activating the conda environment).
+Run Orange with `python -m Orange.canvas` (after activating the virtual environment).
 
 `python -m Orange.canvas -l 2 --no-splash --no-welcome` will skip the splash screen and welcome window, and output more debug info. Use `-l 4` for more.
 
@@ -173,11 +173,11 @@ Set your GitHub username,
 export MY_GITHUB_USERNAME=replaceme
 ```
 
-create a conda environment, clone your forks, and install them:
+create a virtual environment, clone your forks, and install them:
 
 ```Shell
-conda create python=3.12 --yes --name orange3
-conda activate orange3
+python -m venv venv
+# Activate environment (venv\Scripts\activate on Windows or source venv/bin/activate on macOS/Linux)
 
 # Install PyQT and PyQtWebEngine. You can also use PyQt6
 pip install -r requirements-pyqt.txt

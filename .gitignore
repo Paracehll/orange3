@@ -1,3 +1,7 @@
+# Virtual environment
+venv/
+.venv/
+
 # Build files
 build
 dist
