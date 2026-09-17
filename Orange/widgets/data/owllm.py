@@ -115,7 +115,7 @@ def execute_llm_task(prompt_text: str, api_keys: List[str], provider_idx: int = 
 class OWLLM(OWWidget):
     name = "LLM"
     description = "Process inputs using LLM with parallel execution and API key retry."
-    category = "Transform"
+    category = "Data"
     icon = "icons/PythonScript.svg"
     priority = 3160
     keywords = "llm, gpt, openai, deepseek, gemini, nvidia, chatgpt, prompt, ai"
