@@ -112,7 +112,7 @@ if !FIRST_INSTALL!==1 (
     echo     [..] First installation - will install all dependencies
 ) else (
     if exist "venv\.requirements_hash" (
-        for /f "delims=" %%i in ('certutil -hashfile requirements-pyqt.txt MD5 ^| find /v "hash"') do set NEW_HASH=%%i
+        for /f "delims=" %%i in ('certutil -hashfile requirements-core.txt MD5 ^| find /v "hash"') do set NEW_HASH=%%i
         set /p OLD_HASH=<venv\.requirements_hash
         if not "!NEW_HASH!"=="!OLD_HASH!" (
             echo     [..] Dependencies changed - updating packages...
@@ -134,6 +134,11 @@ if "!NEEDS_UPDATE!"=="1" (
     echo     [..] Upgrading pip...
     python -m pip install --upgrade pip --quiet
 
+    echo     [..] Installing core requirements...
+    if exist "requirements-core.txt" (
+        pip install -r requirements-core.txt
+    )
+
     echo     [..] Installing PyQt requirements...
     if exist "requirements-pyqt.txt" (
         pip install -r requirements-pyqt.txt
@@ -150,8 +155,8 @@ if "!NEEDS_UPDATE!"=="1" (
         exit /b 1
     )
 
-    if exist "requirements-pyqt.txt" (
-        for /f "delims=" %%i in ('certutil -hashfile requirements-pyqt.txt MD5 ^| find /v "hash"') do echo %%i>venv\.requirements_hash
+    if exist "requirements-core.txt" (
+        for /f "delims=" %%i in ('certutil -hashfile requirements-core.txt MD5 ^| find /v "hash"') do echo %%i>venv\.requirements_hash
     )
     echo     [OK] Dependencies updated successfully
 ) else (
