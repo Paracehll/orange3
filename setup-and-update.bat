@@ -74,25 +74,33 @@ echo [4/5] Checking for Updates...
 
 set NEEDS_UPDATE=0
 
-git --version >nul 2>&1
-if not errorlevel 1 (
-    echo     [..] Checking for code updates from Git...
-    git fetch >nul 2>&1
+if exist ".git" (
+    call git --version >nul 2>&1
+    if not errorlevel 1 (
+        echo     [..] Checking for code updates from Git...
+        call git fetch >nul 2>&1
 
-    for /f %%i in ('git rev-parse HEAD 2^>nul') do set LOCAL_COMMIT=%%i
-    for /f %%i in ('git rev-parse @{u} 2^>nul') do set REMOTE_COMMIT=%%i
+        set "LOCAL_COMMIT="
+        set "REMOTE_COMMIT="
+        for /f "tokens=*" %%i in ('call git rev-parse HEAD 2^>nul') do set "LOCAL_COMMIT=%%i"
+        for /f "tokens=*" %%i in ('call git rev-parse @{u} 2^>nul') do set "REMOTE_COMMIT=%%i"
 
-    if not "!LOCAL_COMMIT!"=="!REMOTE_COMMIT!" (
-        if not "!REMOTE_COMMIT!"=="" (
-            echo     [..] Updates available! Pulling latest changes...
-            git pull
-            set NEEDS_UPDATE=1
+        if not "!LOCAL_COMMIT!"=="" if not "!REMOTE_COMMIT!"=="" (
+            if not "!LOCAL_COMMIT!"=="!REMOTE_COMMIT!" (
+                echo     [..] Updates available! Pulling latest changes...
+                call git pull
+                set NEEDS_UPDATE=1
+            ) else (
+                echo     [OK] Code is up to date
+            )
+        ) else (
+            echo     [--] Unable to determine remote branch, skipping code update
         )
     ) else (
-        echo     [OK] Code is up to date
+        echo     [--] Git not available, skipping code update check
     )
 ) else (
-    echo     [--] Git not available, skipping code update check
+    echo     [--] Not a git repository, skipping code update check
 )
 
 if !FIRST_INSTALL!==1 (

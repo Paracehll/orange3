@@ -44,22 +44,30 @@ echo [OK] Environment ready
 REM ========================================
 REM Optional: pull latest code on startup
 REM ========================================
-git --version >nul 2>&1
-if not errorlevel 1 (
-    echo Checking for code updates from Git...
-    git fetch >nul 2>&1
-    for /f %%i in ('git rev-parse HEAD 2^>nul') do set LOCAL_COMMIT=%%i
-    for /f %%i in ('git rev-parse @{u} 2^>nul') do set REMOTE_COMMIT=%%i
-    if not "!LOCAL_COMMIT!"=="!REMOTE_COMMIT!" (
-        if not "!REMOTE_COMMIT!"="" (
-            echo Updates available, pulling latest changes...
-            git pull --ff-only
+if exist ".git" (
+    call git --version >nul 2>&1
+    if not errorlevel 1 (
+        echo Checking for code updates from Git...
+        call git fetch >nul 2>&1
+        set "LOCAL_COMMIT="
+        set "REMOTE_COMMIT="
+        for /f "tokens=*" %%i in ('call git rev-parse HEAD 2^>nul') do set "LOCAL_COMMIT=%%i"
+        for /f "tokens=*" %%i in ('call git rev-parse @{u} 2^>nul') do set "REMOTE_COMMIT=%%i"
+        if not "!LOCAL_COMMIT!"=="" if not "!REMOTE_COMMIT!"=="" (
+            if not "!LOCAL_COMMIT!"=="!REMOTE_COMMIT!" (
+                echo Updates available, pulling latest changes...
+                call git pull --ff-only
+            ) else (
+                echo [OK] Code is up to date
+            )
+        ) else (
+            echo [INFO] Unable to determine remote branch, skipping code update
         )
     ) else (
-        echo [OK] Code is up to date
+        echo [INFO] Git not available, skipping code update check
     )
 ) else (
-    echo [INFO] Git not available, skipping code update check
+    echo [INFO] Not a git repository, skipping code update check
 )
 echo.
 
