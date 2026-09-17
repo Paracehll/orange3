@@ -42,6 +42,15 @@ if errorlevel 1 (
 echo [OK] Environment ready
 
 REM ========================================
+REM Verify package installation
+REM ========================================
+python -c "import Orange" >nul 2>&1
+if errorlevel 1 (
+    echo [..] Orange3 not detected in virtual environment. Running installation...
+    pip install -e .
+)
+
+REM ========================================
 REM Optional: pull latest code on startup
 REM ========================================
 if exist ".git" (
@@ -57,6 +66,12 @@ if exist ".git" (
             if not "!LOCAL_COMMIT!"=="!REMOTE_COMMIT!" (
                 echo Updates available, pulling latest changes...
                 call git pull --ff-only
+                if errorlevel 1 (
+                    echo [!!] Warning: git pull failed or encountered local changes.
+                ) else (
+                    echo [..] Re-syncing package installation...
+                    pip install -e . --no-deps >nul 2>&1
+                )
             ) else (
                 echo [OK] Code is up to date
             )

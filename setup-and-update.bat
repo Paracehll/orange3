@@ -89,7 +89,11 @@ if exist ".git" (
             if not "!LOCAL_COMMIT!"=="!REMOTE_COMMIT!" (
                 echo     [..] Updates available! Pulling latest changes...
                 call git pull
-                set NEEDS_UPDATE=1
+                if errorlevel 1 (
+                    echo     [!!] Warning: git pull failed or encountered conflicts.
+                ) else (
+                    set NEEDS_UPDATE=1
+                )
             ) else (
                 echo     [OK] Code is up to date
             )
@@ -108,7 +112,7 @@ if !FIRST_INSTALL!==1 (
     echo     [..] First installation - will install all dependencies
 ) else (
     if exist "venv\.requirements_hash" (
-        for /f "delims=" %%i in ('certutil -hashfile requirements-core.txt MD5 ^| find /v "hash"') do set NEW_HASH=%%i
+        for /f "delims=" %%i in ('certutil -hashfile requirements-pyqt.txt MD5 ^| find /v "hash"') do set NEW_HASH=%%i
         set /p OLD_HASH=<venv\.requirements_hash
         if not "!NEW_HASH!"=="!OLD_HASH!" (
             echo     [..] Dependencies changed - updating packages...
@@ -146,8 +150,8 @@ if "!NEEDS_UPDATE!"=="1" (
         exit /b 1
     )
 
-    if exist "requirements-core.txt" (
-        for /f "delims=" %%i in ('certutil -hashfile requirements-core.txt MD5 ^| find /v "hash"') do echo %%i>venv\.requirements_hash
+    if exist "requirements-pyqt.txt" (
+        for /f "delims=" %%i in ('certutil -hashfile requirements-pyqt.txt MD5 ^| find /v "hash"') do echo %%i>venv\.requirements_hash
     )
     echo     [OK] Dependencies updated successfully
 ) else (
